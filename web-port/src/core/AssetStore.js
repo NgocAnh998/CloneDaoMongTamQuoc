@@ -1,4 +1,5 @@
 import { decodeJ2METextCatalog } from "../data/J2METextCatalog.js";
+import { parseJ2MEAnimation } from "../data/J2MEAnimationParser.js";
 
 export class AssetStore {
   #manifest = null;
@@ -6,6 +7,8 @@ export class AssetStore {
   #images = new Map();
   #binaryPromises = new Map();
   #binaryData = new Map();
+  #animationPromises = new Map();
+  #animations = new Map();
 
   async loadManifest() {
     if (this.#manifest) return this.#manifest;
@@ -29,6 +32,48 @@ export class AssetStore {
 
   getImageCatalogEntry(id) {
     return this.#manifest?.imageCatalog?.find((entry) => entry.id === id) ?? null;
+  }
+
+  getAnimationCatalogEntry(id) {
+    return this.#manifest?.animationCatalog?.find((entry) => entry.id === id) ?? null;
+  }
+
+  loadAnimation(id) {
+    if (this.#animations.has(id)) return Promise.resolve(this.#animations.get(id));
+    if (this.#animationPromises.has(id)) return this.#animationPromises.get(id);
+
+    const entry = this.getAnimationCatalogEntry(id);
+    if (!entry) {
+      return Promise.reject(new Error(`Không tìm thấy animation ID ${id} trong anis.dat.`));
+    }
+
+    const promise = this.loadBinary(entry.name, "ani")
+      .then((buffer) => {
+        const data = parseJ2MEAnimation(buffer, entry.name);
+        return Promise.all(entry.images.map(async (imageRef) => {
+          if (imageRef.overlay) {
+            throw new Error(
+              `Animation ${id} cần palette overlay ${imageRef.overlay}; xử lý palette chưa được port.`
+            );
+          }
+          const image = await this.loadImageById(imageRef.imageId);
+          return { imageId: imageRef.imageId, image };
+        })).then((images) => ({
+          id,
+          name: entry.name,
+          mode: entry.mode,
+          images,
+          ...data
+        }));
+      })
+      .then((animation) => {
+        this.#animations.set(id, animation);
+        return animation;
+      })
+      .finally(() => this.#animationPromises.delete(id));
+
+    this.#animationPromises.set(id, promise);
+    return promise;
   }
 
   loadBinary(name, category = "map") {
