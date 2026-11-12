@@ -23,15 +23,13 @@ npm run check
 
 ## What works now
 
-- Browser Canvas runtime at the original logical size of **320 × 360**.
-- Fixed update step of approximately **100 ms**, matching the J2ME game loop.
-- Original 320×360 splash artwork and original menu/background assets.
-- Menu navigation by keyboard and pointer/touch.
-- Selecting **Bản đồ** loads map resource `001`, resolves its two original image atlases by the ID catalog from `images.dat`, and renders both tile layers.
-- Map data parser reads map dimensions, tile transforms, animation/entity references, collision records, and the optional parallax flag.
-- The map preview can pan in 16-pixel steps with the arrow keys. Press `E` to toggle entity markers, `C` to toggle a raw collision-data overlay, and `ESC` to return to the menu.
-
-The map preview renders the original tiles and marks the entity locations, but does **not** yet animate those entities or simulate the player, movement rules, NPC AI, battles, or quests.
+- Browser Canvas runtime at the original logical size of **320 × 360**, with a fixed game update step of approximately **100 ms**.
+- Original title artwork and original menu/background assets.
+- The post-splash music question uses the original Vietnamese strings decoded from `txt.dat` (IDs 0, 1, and 2: prompt, “Có”, and “Không”). The user's choice is captured, but MIDI playback itself is not ported yet.
+- Selecting **Bản đồ** opens map resource `001`, resolves its two original image atlases through `images.dat`, and renders both 16×16 tile layers.
+- The map parser reads tile transforms, animation/entity references, collision records, and the optional parallax flag. Entity locations are currently shown as markers rather than animated sprites.
+- In the map preview, arrow keys pan the camera, `E` toggles entity markers, `C` toggles a raw collision-data overlay, and `ESC` returns to the menu.
+- Other menu sections are still placeholders; they are not represented as completed gameplay systems.
 
 ## Resource extraction
 
@@ -39,20 +37,20 @@ The source game stores resource data in paired `.idx` and `.pkg` files. An index
 
 The original loader XORs the first 20 bytes of every resource with a one-byte key. I verified the key as **97 decimal (`0x61`)** by checking that decoded image data begins with the PNG signature and decoded music data begins with the MIDI `MThd` header.
 
-The extractor can also be run manually:
+The extractor also copies plain game datasets such as `images.dat`, `txt.dat`, `anis.dat`, and `scenelv.dat`, and places their image ID and static-file indexes into `resource-manifest.json`.
+
+To run extraction manually:
 
 ```bash
 node scripts/extract-pack.mjs --source ../DaoMong-TamQuoc-360x640.jar.src --out public/assets
 ```
 
-To override the verified key for diagnostics only, use `--xor-key 97`.
-
-The extractor writes `public/assets/resource-manifest.json`, including resource paths, image-ID mappings from `images.dat`, and static game datasets.
+Generated files under `public/assets/` are ignored by Git.
 
 ## Porting plan
 
-1. Match the original splash/menu transitions more precisely.
-2. Port map entities and the original animation-file format in `ani.idx/.pkg`.
+1. Reconstruct the original home/menu scene after the music question (the original `ar` class did not decompile cleanly).
+2. Port map animation records and sprite frame playback from `ani.idx/.pkg`.
 3. Port the player character, movement, collision response, and camera-follow behavior.
 4. Port NPC behavior, combat, skills, inventory, quests, and persistence.
 5. Compare each ported scene and mechanic against the original J2ME game.
