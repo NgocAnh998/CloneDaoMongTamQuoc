@@ -20,6 +20,11 @@ try {
   await assets.loadManifest();
   await assets.preloadImages(STARTUP_IMAGES);
 
+  const textCatalog = await assets.loadTextCatalog();
+  if (!textCatalog.has(0) || !textCatalog.has(1) || !textCatalog.has(2)) {
+    throw new Error("Bảng chữ txt.dat thiếu nội dung hộp thoại khởi động.");
+  }
+
   const game = new GameRuntime(canvas);
   const openMap = async () => {
     status.textContent = "Đang nạp bản đồ gốc 001…";
@@ -31,8 +36,13 @@ try {
     game.addScene(mapScene);
     status.textContent = "Đã nạp bản đồ 001 · tileset gốc · dữ liệu entity/collision";
   };
+  const onMusicChoice = (enabled) => {
+    status.textContent = enabled
+      ? "Đã chọn Có · phát nhạc MIDI chưa được port."
+      : "Đã chọn Không · phát nhạc MIDI chưa được port.";
+  };
 
-  game.addScene(new TitleMenuScene(assets, openMap));
+  game.addScene(new TitleMenuScene(assets, openMap, textCatalog, onMusicChoice));
   game.start();
 
   const count = assets.manifest.resourceCount ?? 0;
