@@ -40,7 +40,7 @@ assert.equal(map.width, 2);
 assert.equal(map.height, 2);
 assert.equal(map.layer1ImageId, 103);
 assert.equal(map.layer2ImageId, 104);
-assert.equal(map.collisionCount, undefined);
+assert.equal(map.collisionCount, 1);
 assert.equal(map.collision.length, 1);
 assert.equal(map.collisionGrid[1 * map.height + 0], 3);
 assert.equal(isWalkableTile(map, 0, 0), true);
