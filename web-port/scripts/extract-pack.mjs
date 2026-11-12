@@ -5,6 +5,11 @@ import process from "node:process";
 
 const VERIFIED_XOR_KEY = 0x61;
 const CATEGORIES = ["image", "map", "ani", "role", "out", "music"];
+const STATIC_DATA_FILES = [
+  "images.dat", "anis.dat", "npcdata.dat", "scenelv.dat", "items.dat",
+  "missionItems.dat", "m.mission", "txt.dat", "info.fs", "logo.fs",
+  "logo1.fs", "logo240.fs", "sms.fs", "xuanxiang.fs", "font.bin", "dcn.bin", "minimap"
+];
 
 function parseArgs(argv) {
   const result = {};
@@ -72,6 +77,26 @@ function readJavaUtf(buffer, cursor) {
   const value = decodeModifiedUtf8(buffer.subarray(cursor.offset, cursor.offset + length));
   cursor.offset += length;
   return value;
+}
+
+
+function parseImageCatalog(buffer) {
+  const cursor = { offset: 0 };
+  if (buffer.length < 2) throw new Error("images.dat is too small.");
+  const count = buffer.readUInt16BE(cursor.offset);
+  cursor.offset += 2;
+  const catalog = [];
+
+  for (let i = 0; i < count; i += 1) {
+    if (cursor.offset + 2 > buffer.length) throw new Error("Unexpected end of images.dat (image ID).");
+    const id = buffer.readUInt16BE(cursor.offset);
+    cursor.offset += 2;
+    const name = readJavaUtf(buffer, cursor);
+    const overlay = readJavaUtf(buffer, cursor);
+    catalog.push({ id, name, overlay: overlay || null });
+  }
+
+  return catalog;
 }
 
 function parseIndex(buffer) {
@@ -167,6 +192,8 @@ async function main() {
     verifiedDefaultKey: VERIFIED_XOR_KEY,
     extraction: "J2ME .idx/.pkg resources; XOR is applied to the first 20 bytes",
     categories: {},
+    imageCatalog: [],
+    staticFiles: [],
     resourceCount: 0,
     totalBytes: 0
   };
@@ -214,6 +241,22 @@ async function main() {
 
     manifest.categories[category] = categoryManifest;
     console.log(`${category}: ${entries.length} resource(s)`);
+  }
+
+
+  const imageCatalogPath = path.join(source, "images.dat");
+  manifest.imageCatalog = parseImageCatalog(await readFile(imageCatalogPath));
+
+  const staticOutput = path.join(output, "static");
+  await mkdir(staticOutput, { recursive: true });
+  for (const fileName of STATIC_DATA_FILES) {
+    try {
+      const bytes = await readFile(path.join(source, fileName));
+      await writeFile(path.join(staticOutput, fileName), bytes);
+      manifest.staticFiles.push({ name: fileName, path: `static/${fileName}`, size: bytes.length });
+    } catch {
+      console.warn(`Skip missing static data file: ${fileName}`);
+    }
   }
 
   if (manifest.resourceCount === 0) {
