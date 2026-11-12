@@ -1,5 +1,6 @@
 import { AssetStore } from "./core/AssetStore.js";
 import { GameRuntime } from "./core/GameRuntime.js";
+import { MapPreviewScene } from "./scenes/MapPreviewScene.js";
 import { TitleMenuScene } from "./scenes/TitleMenuScene.js";
 
 const canvas = document.querySelector("#gameCanvas");
@@ -20,7 +21,18 @@ try {
   await assets.preloadImages(STARTUP_IMAGES);
 
   const game = new GameRuntime(canvas);
-  game.addScene(new TitleMenuScene(assets));
+  const openMap = async () => {
+    status.textContent = "Đang nạp bản đồ gốc 001…";
+    const mapScene = await MapPreviewScene.create(
+      assets,
+      "001",
+      () => game.popScene()
+    );
+    game.addScene(mapScene);
+    status.textContent = "Đã nạp bản đồ 001 · tileset gốc · dữ liệu entity/collision";
+  };
+
+  game.addScene(new TitleMenuScene(assets, openMap));
   game.start();
 
   const count = assets.manifest.resourceCount ?? 0;
