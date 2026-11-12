@@ -77,13 +77,16 @@ export class MapPreviewScene {
       let step = clock.sequence[clock.stepIndex];
       // The J2ME entity updater advances the action sequence on game ticks.
       // The browser runtime uses the original ~100 ms tick interval.
-      const stepDuration = Math.max(1, step.duration) * GAME_VIEW.tickMs;
       clock.elapsedMs += deltaMs;
 
-      while (clock.elapsedMs >= stepDuration) {
+      let transitions = 0;
+      while (transitions < clock.sequence.length * 2) {
+        const stepDuration = Math.max(1, step.duration) * GAME_VIEW.tickMs;
+        if (clock.elapsedMs < stepDuration) break;
         clock.elapsedMs -= stepDuration;
         clock.stepIndex = (clock.stepIndex + 1) % clock.sequence.length;
         step = clock.sequence[clock.stepIndex];
+        transitions += 1;
       }
     }
   }
