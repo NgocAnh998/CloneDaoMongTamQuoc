@@ -1,3 +1,5 @@
+import { decodeJ2METextCatalog } from "../data/J2METextCatalog.js";
+
 export class AssetStore {
   #manifest = null;
   #imagePromises = new Map();
@@ -51,6 +53,35 @@ export class AssetStore {
 
     this.#binaryPromises.set(key, promise);
     return promise;
+  }
+
+  loadStaticBinary(name) {
+    const key = `static/${name}`;
+    if (this.#binaryData.has(key)) return Promise.resolve(this.#binaryData.get(key));
+    if (this.#binaryPromises.has(key)) return this.#binaryPromises.get(key);
+
+    const entry = this.#manifest?.staticFiles?.find((file) => file.name === name);
+    if (!entry) return Promise.reject(new Error(`Không tìm thấy dữ liệu tĩnh ${name} trong manifest.`));
+
+    const url = `/public/assets/${entry.path.split("/").map(encodeURIComponent).join("/")}`;
+    const promise = fetch(url)
+      .then((response) => {
+        if (!response.ok) throw new Error(`Không tải được ${entry.path} (HTTP ${response.status}).`);
+        return response.arrayBuffer();
+      })
+      .then((buffer) => {
+        this.#binaryData.set(key, buffer);
+        return buffer;
+      })
+      .finally(() => this.#binaryPromises.delete(key));
+
+    this.#binaryPromises.set(key, promise);
+    return promise;
+  }
+
+  async loadTextCatalog() {
+    const data = await this.loadStaticBinary("txt.dat");
+    return decodeJ2METextCatalog(data);
   }
 
   loadImage(name, category = "image") {
