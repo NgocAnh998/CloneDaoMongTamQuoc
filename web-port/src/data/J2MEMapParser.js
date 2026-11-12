@@ -67,6 +67,7 @@ export function parseJ2MEMap(source, resourceName = "unknown") {
     layer2ImageId,
     layer2,
     entities,
+    collisionCount,
     collision,
     collisionGrid,
     extra,
