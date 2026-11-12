@@ -15,10 +15,11 @@ Open the local URL printed by the server (default: `http://localhost:4173`).
 
 On the first run, the server extracts the original `.idx/.pkg` resource packs and static datasets into `public/assets/`. The generated files stay on your computer and do not need to be committed to GitHub.
 
-Run syntax checks with:
+Run syntax checks and the parser fixture test with:
 
 ```bash
 npm run check
+npm test
 ```
 
 ## What works now
@@ -27,7 +28,8 @@ npm run check
 - Original title artwork and original menu/background assets.
 - The post-splash music question uses the original Vietnamese strings decoded from `txt.dat` (IDs 0, 1, and 2: prompt, “Có”, and “Không”). The user's choice is captured, but MIDI playback itself is not ported yet.
 - Selecting **Bản đồ** opens map resource `001`, resolves its two original image atlases through `images.dat`, and renders both 16×16 tile layers.
-- The map parser reads tile transforms, animation/entity references, collision records, and the optional parallax flag. It also parses `anis.dat` and `.ani` sprite-frame data, then draws original static entity sprites on map `001` for the animation formats currently supported. Unsupported multi-atlas/palette cases fall back to position markers.
+- The map parser reads tile transforms, animation/entity references, collision records, and the optional parallax flag. It also parses `anis.dat` and `.ani` sprite-frame data, then draws the original entity sprites on map `001` for the supported single-atlas formats. Unsupported multi-atlas/palette cases fall back to position markers.
+- The six animation definitions used by map `001` all parse completely. Their action records each contain a single frame step, so those map objects currently appear as static poses rather than visibly looping animations. The parser retains frame-duration data for later character/NPC animation work.
 - In the map preview, arrow keys pan the camera, `E` toggles entity sprites, `C` toggles a raw collision-data overlay, and `ESC` returns to the menu.
 - Other menu sections are still placeholders; they are not represented as completed gameplay systems.
 
@@ -37,7 +39,7 @@ The source game stores resource data in paired `.idx` and `.pkg` files. An index
 
 The original loader XORs the first 20 bytes of every resource with a one-byte key. I verified the key as **97 decimal (`0x61`)** by checking that decoded image data begins with the PNG signature and decoded music data begins with the MIDI `MThd` header.
 
-The extractor also copies plain game datasets such as `images.dat`, `txt.dat`, `anis.dat`, and `scenelv.dat`, and places their image ID and static-file indexes into `resource-manifest.json`.
+The extractor also copies plain game datasets such as `images.dat`, `txt.dat`, `anis.dat`, and `scenelv.dat`, and places their image ID and animation ID indexes into `resource-manifest.json`.
 
 To run extraction manually:
 
@@ -50,9 +52,9 @@ Generated files under `public/assets/` are ignored by Git.
 ## Porting plan
 
 1. Reconstruct the original home/menu scene after the music question (the original `ar` class did not decompile cleanly).
-2. Extend map sprite rendering to multi-atlas animations and timed action sequences from `ani.idx/.pkg`.
-3. Complete multi-atlas animation slicing, action timing, and palette overlays; then port the player character, movement, collision response, and camera-follow behavior.
-4. Port NPC behavior, combat, skills, inventory, quests, and persistence.
+2. Extend sprite playback to multi-atlas animations and palette overlays, then port the player character and movement.
+3. Port map collision response, camera-follow behavior, and NPC behavior.
+4. Port combat, skills, inventory, quests, and persistence.
 5. Compare each ported scene and mechanic against the original J2ME game.
 
 The Java source is heavily obfuscated and some classes were not recovered cleanly by the decompiler. The port is therefore behavior- and data-format-based, not a mechanical syntax conversion. The original source is preserved unchanged for reference.
