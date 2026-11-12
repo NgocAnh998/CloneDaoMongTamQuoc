@@ -28,7 +28,7 @@ npm run check
 - The post-splash music question uses the original Vietnamese strings decoded from `txt.dat` (IDs 0, 1, and 2: prompt, “Có”, and “Không”). The user's choice is captured, but MIDI playback itself is not ported yet.
 - Selecting **Bản đồ** opens map resource `001`, resolves its two original image atlases through `images.dat`, and renders both 16×16 tile layers.
 - The map parser reads tile transforms, animation/entity references, collision records, and the optional parallax flag. It also parses `anis.dat` and `.ani` sprite-frame data, then draws original static entity sprites on map `001` for the animation formats currently supported. Unsupported multi-atlas/palette cases fall back to position markers.
-- In the map preview, arrow keys pan the camera, `E` toggles entity markers, `C` toggles a raw collision-data overlay, and `ESC` returns to the menu.
+- In the map preview, arrow keys pan the camera, `E` toggles entity sprites, `C` toggles a raw collision-data overlay, and `ESC` returns to the menu.
 - Other menu sections are still placeholders; they are not represented as completed gameplay systems.
 
 ## Resource extraction
@@ -50,7 +50,7 @@ Generated files under `public/assets/` are ignored by Git.
 ## Porting plan
 
 1. Reconstruct the original home/menu scene after the music question (the original `ar` class did not decompile cleanly).
-2. Port map animation records and sprite frame playback from `ani.idx/.pkg`.
+2. Extend map sprite rendering to multi-atlas animations and timed action sequences from `ani.idx/.pkg`.
 3. Complete multi-atlas animation slicing, action timing, and palette overlays; then port the player character, movement, collision response, and camera-follow behavior.
 4. Port NPC behavior, combat, skills, inventory, quests, and persistence.
 5. Compare each ported scene and mechanic against the original J2ME game.
