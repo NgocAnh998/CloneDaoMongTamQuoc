@@ -7,32 +7,51 @@ const FOOTER_HEIGHT = 20;
 const VIEW_HEIGHT = GAME_VIEW.height - HUD_HEIGHT - FOOTER_HEIGHT;
 
 export class MapPreviewScene {
-  #assets;
   #map;
   #background;
   #foreground;
+  #animations;
   #onExit;
   #cameraX = 0;
   #cameraY = 0;
   #showEntities = true;
   #showCollision = false;
-  #error = null;
+  #drawnSprites = 0;
+  #fallbackEntities = 0;
 
   static async create(assets, mapName = "001", onExit = () => {}) {
     const data = await assets.loadBinary(mapName, "map");
     const map = parseJ2MEMap(data, mapName);
+
     const [background, foreground] = await Promise.all([
       assets.loadImageById(map.layer1ImageId),
       assets.loadImageById(map.layer2ImageId)
     ]);
-    return new MapPreviewScene(assets, map, background, foreground, onExit);
+
+    const animationIds = [...new Set(map.entities.map((entity) => entity.animationId))];
+    const animationEntries = await Promise.all(animationIds.map(async (id) => {
+      try {
+        return [id, await assets.loadAnimation(id)];
+      } catch (error) {
+        console.warn(`Animation ${id} could not be loaded:`, error);
+        return [id, null];
+      }
+    }));
+
+    return new MapPreviewScene(
+      map,
+      background,
+      foreground,
+      new Map(animationEntries),
+      onExit
+    );
   }
 
-  constructor(assets, map, background, foreground, onExit) {
-    this.#assets = assets;
+  constructor(map, background, foreground, animations, onExit) {
     this.#map = map;
     this.#background = background;
     this.#foreground = foreground;
+    this.#animations = animations;
     this.#onExit = onExit;
 
     const pixelWidth = map.width * TILE;
@@ -52,8 +71,6 @@ export class MapPreviewScene {
     ctx.rect(0, HUD_HEIGHT, GAME_VIEW.width, VIEW_HEIGHT);
     ctx.clip();
 
-    const mapPixelWidth = this.#map.width * TILE;
-    const mapPixelHeight = this.#map.height * TILE;
     ctx.fillStyle = "#101820";
     ctx.fillRect(0, HUD_HEIGHT, GAME_VIEW.width, VIEW_HEIGHT);
 
@@ -69,13 +86,17 @@ export class MapPreviewScene {
     );
 
     this.#drawLayer(ctx, this.#background, this.#map.layer1, startX, startY, endX, endY);
+
+    this.#drawnSprites = 0;
+    this.#fallbackEntities = 0;
+    if (this.#showEntities) this.#drawEntitySprites(ctx);
+
     this.#drawLayer(ctx, this.#foreground, this.#map.layer2, startX, startY, endX, endY);
 
     if (this.#showCollision) this.#drawCollision(ctx);
-    if (this.#showEntities) this.#drawEntityMarkers(ctx);
 
     ctx.restore();
-    this.#drawHud(ctx, mapPixelWidth, mapPixelHeight);
+    this.#drawHud(ctx);
   }
 
   #drawLayer(ctx, atlas, tiles, startX, startY, endX, endY) {
@@ -101,24 +122,99 @@ export class MapPreviewScene {
 
     ctx.save();
     ctx.translate(x, y);
-    applySpriteTransform(ctx, tile.transform);
+    applySpriteTransform(ctx, tile.transform, TILE, TILE);
     ctx.drawImage(atlas, sx, sy, TILE, TILE, 0, 0, TILE, TILE);
     ctx.restore();
   }
 
-  #drawEntityMarkers(ctx) {
+  #drawEntitySprites(ctx) {
     for (const entity of this.#map.entities) {
-      const x = entity.x * TILE - this.#cameraX + TILE / 2;
-      const y = entity.y * TILE - this.#cameraY + HUD_HEIGHT + TILE / 2;
-      if (x < -TILE || y < HUD_HEIGHT - TILE || x > GAME_VIEW.width + TILE || y > HUD_HEIGHT + VIEW_HEIGHT + TILE) {
+      const animation = this.#animations.get(entity.animationId);
+      const action = animation?.actions?.[entity.frame] ?? animation?.actions?.[0];
+      const sequenceEntry = action?.sequence?.find((entry) => entry.frameIndex >= 0);
+      const frame = sequenceEntry
+        ? animation?.frames?.[sequenceEntry.frameIndex]
+        : null;
+
+      if (!animation || !frame || frame.parts.length === 0) {
+        this.#drawEntityFallback(ctx, entity);
+        this.#fallbackEntities += 1;
         continue;
       }
 
-      ctx.fillStyle = entity.layer === 0 ? "rgba(255, 209, 112, 0.92)" : "rgba(116, 208, 255, 0.9)";
-      ctx.beginPath();
-      ctx.arc(x, y, 2.4, 0, Math.PI * 2);
-      ctx.fill();
+      const drewSprite = this.#drawAnimationFrame(ctx, entity, animation, frame);
+      if (drewSprite) {
+        this.#drawnSprites += 1;
+      } else {
+        this.#drawEntityFallback(ctx, entity);
+        this.#fallbackEntities += 1;
+      }
     }
+  }
+
+  #drawAnimationFrame(ctx, entity, animation, frame) {
+    let drewPart = false;
+    const anchorX = entity.x * TILE - this.#cameraX;
+    const anchorY = entity.y * TILE - this.#cameraY + HUD_HEIGHT;
+
+    for (const part of frame.parts) {
+      const rectangle = animation.rectangles[part.rectangleIndex];
+      if (!rectangle || rectangle.width <= 0 || rectangle.height <= 0) continue;
+
+      // Map 001 currently references single-atlas animations. Multi-atlas
+      // animation slicing is not yet ported, so use the first atlas as a safe fallback.
+      const imageEntry = animation.mode === "single"
+        ? animation.images[0]
+        : (animation.images[part.rectangleIndex] ?? animation.images[0]);
+      const atlas = imageEntry?.image;
+      if (!atlas) continue;
+
+      const sx = rectangle.x;
+      const sy = rectangle.y;
+      const sw = rectangle.width;
+      const sh = rectangle.height;
+      if (sx < 0 || sy < 0 || sx + sw > atlas.width || sy + sh > atlas.height) continue;
+
+      const x = anchorX + part.x;
+      const y = anchorY + part.y;
+      if (
+        x + sw < -TILE ||
+        y + sh < HUD_HEIGHT - TILE ||
+        x > GAME_VIEW.width + TILE ||
+        y > HUD_HEIGHT + VIEW_HEIGHT + TILE
+      ) {
+        continue;
+      }
+
+      ctx.save();
+      ctx.translate(x, y);
+      applySpriteTransform(ctx, part.transform, sw, sh);
+      ctx.drawImage(atlas, sx, sy, sw, sh, 0, 0, sw, sh);
+      ctx.restore();
+      drewPart = true;
+    }
+
+    return drewPart;
+  }
+
+  #drawEntityFallback(ctx, entity) {
+    const x = entity.x * TILE - this.#cameraX + TILE / 2;
+    const y = entity.y * TILE - this.#cameraY + HUD_HEIGHT + TILE / 2;
+    if (
+      x < -TILE ||
+      y < HUD_HEIGHT - TILE ||
+      x > GAME_VIEW.width + TILE ||
+      y > HUD_HEIGHT + VIEW_HEIGHT + TILE
+    ) {
+      return;
+    }
+
+    ctx.fillStyle = entity.layer === 0
+      ? "rgba(255, 209, 112, 0.92)"
+      : "rgba(116, 208, 255, 0.9)";
+    ctx.beginPath();
+    ctx.arc(x, y, 2.4, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   #drawCollision(ctx) {
@@ -126,7 +222,12 @@ export class MapPreviewScene {
       if (cell.x >= this.#map.width || cell.y >= this.#map.height) continue;
       const x = cell.x * TILE - this.#cameraX;
       const y = cell.y * TILE - this.#cameraY + HUD_HEIGHT;
-      if (x < -TILE || y < HUD_HEIGHT - TILE || x > GAME_VIEW.width || y > HUD_HEIGHT + VIEW_HEIGHT) {
+      if (
+        x < -TILE ||
+        y < HUD_HEIGHT - TILE ||
+        x > GAME_VIEW.width ||
+        y > HUD_HEIGHT + VIEW_HEIGHT
+      ) {
         continue;
       }
 
@@ -138,7 +239,7 @@ export class MapPreviewScene {
     }
   }
 
-  #drawHud(ctx, mapPixelWidth, mapPixelHeight) {
+  #drawHud(ctx) {
     ctx.fillStyle = "rgba(5, 10, 16, 0.96)";
     ctx.fillRect(0, 0, GAME_VIEW.width, HUD_HEIGHT);
     ctx.fillRect(0, GAME_VIEW.height - FOOTER_HEIGHT, GAME_VIEW.width, FOOTER_HEIGHT);
@@ -153,7 +254,7 @@ export class MapPreviewScene {
     ctx.textAlign = "right";
     ctx.font = "9px Arial, sans-serif";
     ctx.fillText(
-      `${this.#map.width}×${this.#map.height} ô · ${this.#map.entities.length} entity · ${this.#map.collision.length} collision`,
+      `${this.#map.width}×${this.#map.height} ô · ${this.#drawnSprites} sprites · ${this.#fallbackEntities} fallback`,
       312,
       12
     );
@@ -164,14 +265,10 @@ export class MapPreviewScene {
     const collisionLabel = this.#showCollision ? "Collision: ON" : "Collision: OFF";
     const entityLabel = this.#showEntities ? "Entities: ON" : "Entities: OFF";
     ctx.fillText(
-      `← ↑ → ↓ Di chuyển camera · E ${entityLabel} · C ${collisionLabel} · ESC Quay lại`,
+      `← ↑ → ↓ Camera · E ${entityLabel} · C ${collisionLabel} · ESC Quay lại`,
       160,
       GAME_VIEW.height - 10
     );
-
-    // Keep the actual map bounds visible in the status line while developing camera logic.
-    void mapPixelWidth;
-    void mapPixelHeight;
   }
 
   handleKey(type, event) {
@@ -219,29 +316,29 @@ export class MapPreviewScene {
   }
 }
 
-function applySpriteTransform(ctx, transform) {
+function applySpriteTransform(ctx, transform, width, height) {
   // MIDP Sprite.TRANS_* values: mirror/rotate semantics from J2ME.
   switch (transform & 7) {
     case 1: // TRANS_MIRROR_ROT180: vertical flip
-      ctx.transform(1, 0, 0, -1, 0, TILE);
+      ctx.transform(1, 0, 0, -1, 0, height);
       break;
     case 2: // TRANS_MIRROR: horizontal flip
-      ctx.transform(-1, 0, 0, 1, TILE, 0);
+      ctx.transform(-1, 0, 0, 1, width, 0);
       break;
     case 3: // TRANS_ROT180
-      ctx.transform(-1, 0, 0, -1, TILE, TILE);
+      ctx.transform(-1, 0, 0, -1, width, height);
       break;
     case 4: // TRANS_MIRROR_ROT270: diagonal reflection
       ctx.transform(0, 1, 1, 0, 0, 0);
       break;
     case 5: // TRANS_ROT90
-      ctx.transform(0, 1, -1, 0, TILE, 0);
+      ctx.transform(0, 1, -1, 0, height, 0);
       break;
     case 6: // TRANS_ROT270
-      ctx.transform(0, -1, 1, 0, 0, TILE);
+      ctx.transform(0, -1, 1, 0, 0, width);
       break;
     case 7: // TRANS_MIRROR_ROT90: anti-diagonal reflection
-      ctx.transform(0, -1, -1, 0, TILE, TILE);
+      ctx.transform(0, -1, -1, 0, height, width);
       break;
     default:
       break;
