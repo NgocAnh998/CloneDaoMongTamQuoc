@@ -33,7 +33,9 @@ async function ensureAssets() {
     const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
     const hasImageCatalog = Array.isArray(manifest.imageCatalog) && manifest.imageCatalog.length > 0;
     const hasMapCatalog = Array.isArray(manifest.categories?.map) && manifest.categories.map.length > 0;
-    if (hasImageCatalog && hasMapCatalog) {
+    const hasTextCatalog = Array.isArray(manifest.staticFiles) &&
+      manifest.staticFiles.some((file) => file.name === "txt.dat");
+    if (hasImageCatalog && hasMapCatalog && hasTextCatalog) {
       console.log("Decoded game resources and image catalog found in public/assets.");
       return;
     }
