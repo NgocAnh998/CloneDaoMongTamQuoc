@@ -1,10 +1,10 @@
 {
   "name": "dao-mong-tam-quoc-web-port",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "node server.mjs",
-    "check": "node --check server.mjs && node --check src/main.js && node --check src/core/SceneStack.js && node --check src/core/GameRuntime.js && node --check src/core/AssetStore.js && node --check src/data/BinaryReader.js && node --check src/data/J2MEMapParser.js && node --check src/scenes/TitleMenuScene.js && node --check src/scenes/MapPreviewScene.js && node --check scripts/extract-pack.mjs"
+    "check": "node --check server.mjs && node --check src/main.js && node --check src/core/SceneStack.js && node --check src/core/GameRuntime.js && node --check src/core/AssetStore.js && node --check src/data/BinaryReader.js && node --check src/data/J2MEMapParser.js && node --check src/data/J2METextCatalog.js && node --check src/scenes/TitleMenuScene.js && node --check src/scenes/MapPreviewScene.js && node --check scripts/extract-pack.mjs"
   }
 }
