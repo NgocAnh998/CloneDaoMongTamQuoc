@@ -133,7 +133,12 @@ export class MapPreviewScene {
       const action = animation?.actions?.[entity.frame] ?? animation?.actions?.[0];
       const sequenceEntry = action?.sequence?.find((entry) => entry.frameIndex >= 0);
       const frame = sequenceEntry
-        ? animation?.frames?.[sequenceEntry.frameIndex]
+        ? (
+            animation?.frames?.[sequenceEntry.frameIndex] ??
+            (animation?.frames?.length === 1 && sequenceEntry.frameIndex === 1
+              ? animation.frames[0]
+              : null)
+          )
         : null;
 
       if (!animation || !frame || frame.parts.length === 0) {
