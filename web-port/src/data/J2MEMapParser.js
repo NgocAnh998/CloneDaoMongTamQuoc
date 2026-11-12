@@ -37,18 +37,17 @@ export function parseJ2MEMap(source, resourceName = "unknown") {
   }
 
   const collisionCount = reader.readU16();
-  const collision = new Array(collisionCount);
+  const collision = [];
   for (let i = 0; i < collisionCount; i += 1) {
-    collision[i] = {
+    collision.push({
       x: reader.readU8(),
       y: reader.readU8(),
       value: reader.readU8()
-    };
+    });
   }
 
   const extra = reader.readU8();
   const hasParallax = reader.readBoolean();
-  const parallaxImageId = hasParallax ? reader.readU16() : null;
 
   return {
     resourceName,
@@ -65,7 +64,8 @@ export function parseJ2MEMap(source, resourceName = "unknown") {
     collision,
     extra,
     hasParallax,
-    parallaxImageId,
+    // The original J2ME renderer uses its fixed image resource ID 4 when enabled.
+    parallaxImageId: hasParallax ? 4 : null,
     trailingBytes: reader.remaining
   };
 }
