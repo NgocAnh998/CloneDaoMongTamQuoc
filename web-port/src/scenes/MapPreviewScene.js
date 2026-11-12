@@ -1,5 +1,5 @@
 import { GAME_VIEW } from "../core/GameRuntime.js";
-import { parseJ2MEMap } from "../data/J2MEMapParser.js";
+import { isWalkableTile, parseJ2MEMap } from "../data/J2MEMapParser.js";
 
 const TILE = 16;
 const HUD_HEIGHT = 24;
@@ -15,10 +15,14 @@ export class MapPreviewScene {
   #onExit;
   #cameraX = 0;
   #cameraY = 0;
+  #playerX = 0;
+  #playerY = 0;
+  #playerDirection = 0;
   #showEntities = true;
   #showCollision = false;
   #drawnSprites = 0;
   #fallbackEntities = 0;
+  #blockedMoves = 0;
 
   static async create(assets, mapName = "001", onExit = () => {}) {
     const data = await assets.loadBinary(mapName, "map");
@@ -64,10 +68,14 @@ export class MapPreviewScene {
       };
     });
 
-    const pixelWidth = map.width * TILE;
-    const pixelHeight = map.height * TILE;
-    this.#cameraX = Math.max(0, Math.floor((pixelWidth - GAME_VIEW.width) / 2));
-    this.#cameraY = Math.max(0, Math.floor((pixelHeight - VIEW_HEIGHT) / 2));
+    const spawn = findNearestWalkable(map, Math.floor(map.width / 2), Math.floor(map.height / 2));
+    if (!spawn) {
+      throw new Error(`Map ${map.resourceName} has no walkable tile for the movement test.`);
+    }
+
+    this.#playerX = spawn.x;
+    this.#playerY = spawn.y;
+    this.#followPlayer();
   }
 
   update(deltaMs) {
@@ -75,8 +83,6 @@ export class MapPreviewScene {
       if (clock.sequence.length <= 1) continue;
 
       let step = clock.sequence[clock.stepIndex];
-      // The J2ME entity updater advances the action sequence on game ticks.
-      // The browser runtime uses the original ~100 ms tick interval.
       clock.elapsedMs += deltaMs;
 
       let transitions = 0;
@@ -121,6 +127,7 @@ export class MapPreviewScene {
     if (this.#showEntities) this.#drawEntitySprites(ctx);
 
     this.#drawLayer(ctx, this.#foreground, this.#map.layer2, startX, startY, endX, endY);
+    this.#drawMovementTestActor(ctx);
 
     if (this.#showCollision) this.#drawCollision(ctx);
 
@@ -178,8 +185,7 @@ export class MapPreviewScene {
         continue;
       }
 
-      const drewSprite = this.#drawAnimationFrame(ctx, entity, animation, frame);
-      if (drewSprite) {
+      if (this.#drawAnimationFrame(ctx, entity, animation, frame)) {
         this.#drawnSprites += 1;
       } else {
         this.#drawEntityFallback(ctx, entity);
@@ -197,8 +203,6 @@ export class MapPreviewScene {
       const rectangle = animation.rectangles[part.rectangleIndex];
       if (!rectangle || rectangle.width <= 0 || rectangle.height <= 0) continue;
 
-      // Map 001 currently references single-atlas animations. Multi-atlas
-      // animation slicing is not yet ported, so use the first atlas as a safe fallback.
       const imageEntry = animation.mode === "single"
         ? animation.images[0]
         : (animation.images[part.rectangleIndex] ?? animation.images[0]);
@@ -253,6 +257,44 @@ export class MapPreviewScene {
     ctx.fill();
   }
 
+  #drawMovementTestActor(ctx) {
+    const x = this.#playerX * TILE - this.#cameraX + TILE / 2;
+    const y = this.#playerY * TILE - this.#cameraY + HUD_HEIGHT + TILE / 2;
+
+    // Temporary movement-test marker. The original playable hero sprite/controller
+    // has not yet been recovered from the decompiler-damaged p.java / ai.java.
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = "rgba(12, 22, 33, 0.86)";
+    ctx.beginPath();
+    ctx.arc(0, 0, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#fff2c4";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(0, 0, 5.7, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.fillStyle = "#42d4ff";
+    ctx.beginPath();
+    ctx.arc(0, 0, 3.6, 0, Math.PI * 2);
+    ctx.fill();
+
+    const direction = [
+      { x: 0, y: -1 },
+      { x: 0, y: 1 },
+      { x: -1, y: 0 },
+      { x: 1, y: 0 }
+    ][this.#playerDirection];
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(direction.x * 2, direction.y * 2);
+    ctx.lineTo(direction.x * 6, direction.y * 6);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   #drawCollision(ctx) {
     for (const cell of this.#map.collision) {
       if (cell.x >= this.#map.width || cell.y >= this.#map.height) continue;
@@ -267,10 +309,11 @@ export class MapPreviewScene {
         continue;
       }
 
-      const shade = Math.max(0.12, Math.min(0.48, cell.value / 255));
-      ctx.fillStyle = `rgba(255, 76, 66, ${shade})`;
+      ctx.fillStyle = cell.value === 3
+        ? "rgba(255, 76, 66, 0.28)"
+        : "rgba(87, 226, 151, 0.18)";
       ctx.fillRect(x, y, TILE, TILE);
-      ctx.strokeStyle = "rgba(255, 190, 175, 0.3)";
+      ctx.strokeStyle = "rgba(255, 230, 220, 0.22)";
       ctx.strokeRect(x + 0.5, y + 0.5, TILE - 1, TILE - 1);
     }
   }
@@ -289,19 +332,15 @@ export class MapPreviewScene {
     ctx.fillStyle = "#e2e8ef";
     ctx.textAlign = "right";
     ctx.font = "9px Arial, sans-serif";
-    ctx.fillText(
-      `${this.#map.width}×${this.#map.height} ô · ${this.#drawnSprites} sprites · ${this.#fallbackEntities} fallback`,
-      312,
-      12
-    );
+    ctx.fillText(`TEST ${this.#playerX},${this.#playerY} · ${this.#drawnSprites} sprites`, 312, 12);
 
     ctx.fillStyle = "#bac6d3";
     ctx.textAlign = "center";
-    ctx.font = "9px Arial, sans-serif";
-    const collisionLabel = this.#showCollision ? "Collision: ON" : "Collision: OFF";
-    const entityLabel = this.#showEntities ? "Entities: ON" : "Entities: OFF";
+    ctx.font = "8px Arial, sans-serif";
+    const collisionLabel = this.#showCollision ? "Col ON" : "Col OFF";
+    const entityLabel = this.#showEntities ? "Sprites ON" : "Sprites OFF";
     ctx.fillText(
-      `← ↑ → ↓ Camera · E ${entityLabel} · C ${collisionLabel} · ESC Quay lại`,
+      `Arrows Move · Shift+Arrows Pan · E ${entityLabel} · C ${collisionLabel} · ESC Menu`,
       160,
       GAME_VIEW.height - 10
     );
@@ -316,16 +355,20 @@ export class MapPreviewScene {
         this.#onExit();
         break;
       case "ArrowLeft":
-        this.#moveCamera(-TILE, 0);
+        if (event.shiftKey) this.#moveCamera(-TILE, 0);
+        else this.#moveTestActor(-1, 0, 2);
         break;
       case "ArrowRight":
-        this.#moveCamera(TILE, 0);
+        if (event.shiftKey) this.#moveCamera(TILE, 0);
+        else this.#moveTestActor(1, 0, 3);
         break;
       case "ArrowUp":
-        this.#moveCamera(0, -TILE);
+        if (event.shiftKey) this.#moveCamera(0, -TILE);
+        else this.#moveTestActor(0, -1, 0);
         break;
       case "ArrowDown":
-        this.#moveCamera(0, TILE);
+        if (event.shiftKey) this.#moveCamera(0, TILE);
+        else this.#moveTestActor(0, 1, 1);
         break;
       case "e":
       case "E":
@@ -340,6 +383,29 @@ export class MapPreviewScene {
     }
   }
 
+  #moveTestActor(dx, dy, direction) {
+    this.#playerDirection = direction;
+    const nextX = this.#playerX + dx;
+    const nextY = this.#playerY + dy;
+    if (!isWalkableTile(this.#map, nextX, nextY)) {
+      this.#blockedMoves += 1;
+      return;
+    }
+
+    this.#playerX = nextX;
+    this.#playerY = nextY;
+    this.#followPlayer();
+  }
+
+  #followPlayer() {
+    const maxX = Math.max(0, this.#map.width * TILE - GAME_VIEW.width);
+    const maxY = Math.max(0, this.#map.height * TILE - VIEW_HEIGHT);
+    const targetX = this.#playerX * TILE + TILE / 2 - GAME_VIEW.width / 2;
+    const targetY = this.#playerY * TILE + TILE / 2 - VIEW_HEIGHT / 2;
+    this.#cameraX = Math.max(0, Math.min(maxX, targetX));
+    this.#cameraY = Math.max(0, Math.min(maxY, targetY));
+  }
+
   #moveCamera(dx, dy) {
     const maxX = Math.max(0, this.#map.width * TILE - GAME_VIEW.width);
     const maxY = Math.max(0, this.#map.height * TILE - VIEW_HEIGHT);
@@ -348,32 +414,49 @@ export class MapPreviewScene {
   }
 
   handlePointer() {
-    // Keyboard panning is intentional for the first map-data inspection pass.
+    // Keyboard movement is used until the original touchscreen controls are ported.
   }
+}
+
+function findNearestWalkable(map, originX, originY) {
+  const maxRadius = Math.max(map.width, map.height);
+  for (let radius = 0; radius <= maxRadius; radius += 1) {
+    for (let x = Math.max(0, originX - radius); x <= Math.min(map.width - 1, originX + radius); x += 1) {
+      for (let y = Math.max(0, originY - radius); y <= Math.min(map.height - 1, originY + radius); y += 1) {
+        if (
+          Math.max(Math.abs(x - originX), Math.abs(y - originY)) === radius &&
+          isWalkableTile(map, x, y)
+        ) {
+          return { x, y };
+        }
+      }
+    }
+  }
+  return null;
 }
 
 function applySpriteTransform(ctx, transform, width, height) {
   // MIDP Sprite.TRANS_* values: mirror/rotate semantics from J2ME.
   switch (transform & 7) {
-    case 1: // TRANS_MIRROR_ROT180: vertical flip
+    case 1:
       ctx.transform(1, 0, 0, -1, 0, height);
       break;
-    case 2: // TRANS_MIRROR: horizontal flip
+    case 2:
       ctx.transform(-1, 0, 0, 1, width, 0);
       break;
-    case 3: // TRANS_ROT180
+    case 3:
       ctx.transform(-1, 0, 0, -1, width, height);
       break;
-    case 4: // TRANS_MIRROR_ROT270: diagonal reflection
+    case 4:
       ctx.transform(0, 1, 1, 0, 0, 0);
       break;
-    case 5: // TRANS_ROT90
+    case 5:
       ctx.transform(0, 1, -1, 0, height, 0);
       break;
-    case 6: // TRANS_ROT270
+    case 6:
       ctx.transform(0, -1, 1, 0, 0, width);
       break;
-    case 7: // TRANS_MIRROR_ROT90: anti-diagonal reflection
+    case 7:
       ctx.transform(0, -1, -1, 0, height, width);
       break;
     default:
