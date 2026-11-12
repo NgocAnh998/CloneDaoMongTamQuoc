@@ -31,18 +31,13 @@ export function parseJ2MEAnimation(source, resourceName = "unknown") {
 
   const frames = [];
   for (let frameIndex = 0; frameIndex < frameCount; frameIndex += 1) {
-    // bc.java stores the frame bounds as four shorts cast down to signed bytes.
-    const bounds = {
-      left: reader.readI8(),
-      top: reader.readI8(),
-      right: reader.readI8(),
-      bottom: reader.readI8()
-    };
+    // bc.java reads four shorts, then narrows each value to a signed byte.
+    const bounds = readFourNarrowedBytes(reader);
 
     const hasPrimaryHitbox = reader.readBoolean();
-    const primaryHitbox = hasPrimaryHitbox ? readFourShorts(reader) : null;
+    const primaryHitbox = hasPrimaryHitbox ? readFourNarrowedBytes(reader) : null;
     const hasSecondaryHitbox = reader.readBoolean();
-    const secondaryHitbox = hasSecondaryHitbox ? readFourShorts(reader) : null;
+    const secondaryHitbox = hasSecondaryHitbox ? readFourNarrowedBytes(reader) : null;
 
     const partCount = reader.readU16();
     if (partCount > MAX_PARTS_PER_FRAME) {
@@ -52,7 +47,8 @@ export function parseJ2MEAnimation(source, resourceName = "unknown") {
     const parts = [];
     for (let partIndex = 0; partIndex < partCount; partIndex += 1) {
       parts.push({
-        rectangleIndex: reader.readU16(),
+        // The original stores this field in a short array but later reads it as a byte.
+        rectangleIndex: narrowSignedByte(reader.readI16()),
         transform: reader.readI8(),
         x: reader.readI16(),
         y: reader.readI16()
@@ -102,11 +98,15 @@ export function parseJ2MEAnimation(source, resourceName = "unknown") {
   };
 }
 
-function readFourShorts(reader) {
+function readFourNarrowedBytes(reader) {
   return {
-    x: reader.readI16(),
-    y: reader.readI16(),
-    width: reader.readI16(),
-    height: reader.readI16()
+    left: narrowSignedByte(reader.readI16()),
+    top: narrowSignedByte(reader.readI16()),
+    right: narrowSignedByte(reader.readI16()),
+    bottom: narrowSignedByte(reader.readI16())
   };
+}
+
+function narrowSignedByte(value) {
+  return (value << 24) >> 24;
 }
