@@ -220,26 +220,27 @@ export class MapPreviewScene {
 }
 
 function applySpriteTransform(ctx, transform) {
+  // MIDP Sprite.TRANS_* values: mirror/rotate semantics from J2ME.
   switch (transform & 7) {
-    case 1:
-      ctx.transform(-1, 0, 0, 1, TILE, 0);
-      break;
-    case 2:
+    case 1: // TRANS_MIRROR_ROT180: vertical flip
       ctx.transform(1, 0, 0, -1, 0, TILE);
       break;
-    case 3:
+    case 2: // TRANS_MIRROR: horizontal flip
+      ctx.transform(-1, 0, 0, 1, TILE, 0);
+      break;
+    case 3: // TRANS_ROT180
       ctx.transform(-1, 0, 0, -1, TILE, TILE);
       break;
-    case 4:
-      ctx.transform(0, 1, -1, 0, TILE, 0);
-      break;
-    case 5:
-      ctx.transform(0, -1, 1, 0, 0, TILE);
-      break;
-    case 6:
+    case 4: // TRANS_MIRROR_ROT270: diagonal reflection
       ctx.transform(0, 1, 1, 0, 0, 0);
       break;
-    case 7:
+    case 5: // TRANS_ROT90
+      ctx.transform(0, 1, -1, 0, TILE, 0);
+      break;
+    case 6: // TRANS_ROT270
+      ctx.transform(0, -1, 1, 0, 0, TILE);
+      break;
+    case 7: // TRANS_MIRROR_ROT90: anti-diagonal reflection
       ctx.transform(0, -1, -1, 0, TILE, TILE);
       break;
     default:
