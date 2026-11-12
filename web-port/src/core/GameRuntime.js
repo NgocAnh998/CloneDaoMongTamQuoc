@@ -24,10 +24,19 @@ export class GameRuntime {
     this.#stack.handleKey("up", event);
   };
 
+  #onPointerDown = (event) => {
+    const rect = this.#canvas.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    this.#stack.handlePointer({
+      x: ((event.clientX - rect.left) / rect.width) * LOGICAL_WIDTH,
+      y: ((event.clientY - rect.top) / rect.height) * LOGICAL_HEIGHT
+    });
+  };
+
   #frame = (timestamp) => {
     if (!this.#running) return;
-
     if (this.#lastFrame === 0) this.#lastFrame = timestamp;
+
     const elapsed = Math.min(timestamp - this.#lastFrame, 500);
     this.#lastFrame = timestamp;
     this.#accumulator += elapsed;
@@ -46,7 +55,6 @@ export class GameRuntime {
     if (!(canvas instanceof HTMLCanvasElement)) {
       throw new TypeError("GameRuntime requires a canvas element.");
     }
-
     const context = canvas.getContext("2d", { alpha: false });
     if (!context) throw new Error("Canvas 2D is not available.");
 
@@ -67,6 +75,7 @@ export class GameRuntime {
     this.#lastFrame = 0;
     window.addEventListener("keydown", this.#onKeyDown);
     window.addEventListener("keyup", this.#onKeyUp);
+    this.#canvas.addEventListener("pointerdown", this.#onPointerDown);
     this.#rafId = requestAnimationFrame(this.#frame);
   }
 
@@ -76,6 +85,7 @@ export class GameRuntime {
     cancelAnimationFrame(this.#rafId);
     window.removeEventListener("keydown", this.#onKeyDown);
     window.removeEventListener("keyup", this.#onKeyUp);
+    this.#canvas.removeEventListener("pointerdown", this.#onPointerDown);
     this.#stack.destroy();
   }
 }
