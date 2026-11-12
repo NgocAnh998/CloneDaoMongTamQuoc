@@ -13,7 +13,7 @@ npm run dev
 
 Open the local URL printed by the server (default: `http://localhost:4173`).
 
-On the first run, the server extracts the original `.idx/.pkg` resource packs into `public/assets/`. The generated files stay on your computer and do not need to be committed to GitHub.
+On the first run, the server extracts the original `.idx/.pkg` resource packs and static datasets into `public/assets/`. The generated files stay on your computer and do not need to be committed to GitHub.
 
 Run syntax checks with:
 
@@ -25,9 +25,13 @@ npm run check
 
 - Browser Canvas runtime at the original logical size of **320 × 360**.
 - Fixed update step of approximately **100 ms**, matching the J2ME game loop.
-- First-launch artwork from the original `240X320-80S.png` image.
-- A menu shell using original game background/header art, with keyboard and pointer/touch navigation.
-- The eight Vietnamese menu sections are selectable. Their actual game modules are not ported yet; opening one shows a clear placeholder instead of pretending the feature is complete.
+- Original 320×360 splash artwork and original menu/background assets.
+- Menu navigation by keyboard and pointer/touch.
+- Selecting **Bản đồ** loads map resource `001`, resolves its two original image atlases by the ID catalog from `images.dat`, and renders both tile layers.
+- Map data parser reads map dimensions, tile transforms, animation/entity references, collision records, and the optional parallax flag.
+- The map preview can pan in 16-pixel steps with the arrow keys. Press `E` to toggle entity markers, `C` to toggle a raw collision-data overlay, and `ESC` to return to the menu.
+
+The map preview renders the original tiles and marks the entity locations, but does **not** yet animate those entities or simulate the player, movement rules, NPC AI, battles, or quests.
 
 ## Resource extraction
 
@@ -43,14 +47,14 @@ node scripts/extract-pack.mjs --source ../DaoMong-TamQuoc-360x640.jar.src --out 
 
 To override the verified key for diagnostics only, use `--xor-key 97`.
 
-The extractor writes `public/assets/resource-manifest.json`, which the browser uses to locate assets by category and resource name.
+The extractor writes `public/assets/resource-manifest.json`, including resource paths, image-ID mappings from `images.dat`, and static game datasets.
 
 ## Porting plan
 
-1. Finish matching the original splash and menu transitions.
-2. Decode and inspect map, role, animation, and UI datasets.
-3. Port the map renderer, player/NPC entities, movement, and camera.
-4. Port combat, skills, inventory, quests, and save data.
-5. Compare the port against the original J2ME screens and behavior.
+1. Match the original splash/menu transitions more precisely.
+2. Port map entities and the original animation-file format in `ani.idx/.pkg`.
+3. Port the player character, movement, collision response, and camera-follow behavior.
+4. Port NPC behavior, combat, skills, inventory, quests, and persistence.
+5. Compare each ported scene and mechanic against the original J2ME game.
 
 The Java source is heavily obfuscated and some classes were not recovered cleanly by the decompiler. The port is therefore behavior- and data-format-based, not a mechanical syntax conversion. The original source is preserved unchanged for reference.
