@@ -11,6 +11,7 @@ export class MapPreviewScene {
   #background;
   #foreground;
   #animations;
+  #entityClocks;
   #onExit;
   #cameraX = 0;
   #cameraY = 0;
@@ -53,6 +54,15 @@ export class MapPreviewScene {
     this.#foreground = foreground;
     this.#animations = animations;
     this.#onExit = onExit;
+    this.#entityClocks = map.entities.map((entity) => {
+      const animation = animations.get(entity.animationId);
+      const action = animation?.actions?.[entity.frame] ?? animation?.actions?.[0];
+      return {
+        sequence: action?.sequence ?? [],
+        stepIndex: 0,
+        elapsedMs: 0
+      };
+    });
 
     const pixelWidth = map.width * TILE;
     const pixelHeight = map.height * TILE;
@@ -60,7 +70,23 @@ export class MapPreviewScene {
     this.#cameraY = Math.max(0, Math.floor((pixelHeight - VIEW_HEIGHT) / 2));
   }
 
-  update() {}
+  update(deltaMs) {
+    for (const clock of this.#entityClocks) {
+      if (clock.sequence.length <= 1) continue;
+
+      let step = clock.sequence[clock.stepIndex];
+      // The J2ME entity updater advances the action sequence on game ticks.
+      // The browser runtime uses the original ~100 ms tick interval.
+      const stepDuration = Math.max(1, step.duration) * GAME_VIEW.tickMs;
+      clock.elapsedMs += deltaMs;
+
+      while (clock.elapsedMs >= stepDuration) {
+        clock.elapsedMs -= stepDuration;
+        clock.stepIndex = (clock.stepIndex + 1) % clock.sequence.length;
+        step = clock.sequence[clock.stepIndex];
+      }
+    }
+  }
 
   render(ctx) {
     ctx.fillStyle = "#111820";
@@ -128,14 +154,16 @@ export class MapPreviewScene {
   }
 
   #drawEntitySprites(ctx) {
-    for (const entity of this.#map.entities) {
+    for (let index = 0; index < this.#map.entities.length; index += 1) {
+      const entity = this.#map.entities[index];
       const animation = this.#animations.get(entity.animationId);
-      const action = animation?.actions?.[entity.frame] ?? animation?.actions?.[0];
-      const sequenceEntry = action?.sequence?.find((entry) => entry.frameIndex >= 0);
-      const frame = sequenceEntry
+      const clock = this.#entityClocks[index];
+      const sequenceEntry = clock?.sequence?.[clock.stepIndex];
+      const frameIndex = sequenceEntry?.frameIndex;
+      const frame = Number.isInteger(frameIndex) && frameIndex >= 0
         ? (
-            animation?.frames?.[sequenceEntry.frameIndex] ??
-            (animation?.frames?.length === 1 && sequenceEntry.frameIndex === 1
+            animation?.frames?.[frameIndex] ??
+            (animation?.frames?.length === 1 && frameIndex === 1
               ? animation.frames[0]
               : null)
           )
