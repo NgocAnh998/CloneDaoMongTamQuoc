@@ -1,15 +1,30 @@
+import { AssetStore } from "./core/AssetStore.js";
 import { GameRuntime } from "./core/GameRuntime.js";
-import { PortStatusScene } from "./scenes/PortStatusScene.js";
+import { TitleMenuScene } from "./scenes/TitleMenuScene.js";
 
 const canvas = document.querySelector("#gameCanvas");
 const status = document.querySelector("#runtimeStatus");
+const STARTUP_IMAGES = [
+  "240X320-80S.png",
+  "beijing.png",
+  "biaoti.png",
+  "zhujiemian3.png",
+  "zhujiemian.png"
+];
 
 try {
+  status.textContent = "Đang nạp tài nguyên game gốc…";
+
+  const assets = new AssetStore();
+  await assets.loadManifest();
+  await assets.preloadImages(STARTUP_IMAGES);
+
   const game = new GameRuntime(canvas);
-  game.addScene(new PortStatusScene());
+  game.addScene(new TitleMenuScene(assets));
   game.start();
 
-  status.textContent = "Runtime hoạt động · vùng vẽ logic 320 × 360 · nhịp game 100 ms";
+  const count = assets.manifest.resourceCount ?? 0;
+  status.textContent = `Đã nạp ${count} tài nguyên · màn hình 320 × 360 · nhịp game 100 ms`;
   window.addEventListener("pagehide", () => game.stop(), { once: true });
 } catch (error) {
   console.error(error);
