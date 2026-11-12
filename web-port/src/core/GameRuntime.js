@@ -69,6 +69,10 @@ export class GameRuntime {
     this.#stack.push(scene);
   }
 
+  popScene() {
+    return this.#stack.pop();
+  }
+
   start() {
     if (this.#running) return;
     this.#running = true;
