@@ -211,7 +211,7 @@ async function main() {
   }
 
   const manifestPath = path.join(output, "resource-manifest.json");
-  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\\n`, "utf8");
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
   console.log(`Extracted ${manifest.resourceCount} resource(s) (${manifest.totalBytes.toLocaleString()} bytes) to ${output}`);
   console.log(`Manifest: ${manifestPath}`);
 }
