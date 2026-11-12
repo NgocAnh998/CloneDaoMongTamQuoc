@@ -31,6 +31,10 @@ export class SceneStack {
     this.current?.handleKey?.(type, event);
   }
 
+  handlePointer(point) {
+    this.current?.handlePointer?.(point);
+  }
+
   destroy() {
     while (this.#scenes.length) this.pop();
   }
