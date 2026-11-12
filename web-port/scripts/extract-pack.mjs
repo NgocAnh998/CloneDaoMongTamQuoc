@@ -96,15 +96,25 @@ function parseIndex(buffer) {
 }
 
 function safeOutputPath(root, category, entryName) {
-  const normalized = entryName.replaceAll("\\", "/").replace(/^\\/+/, "");
-  const target = path.resolve(root, category, normalized);
-  const relative = path.relative(root, target);
-  if (!normalized || relative.startsWith("..") || path.isAbsolute(relative)) {
+  const normalized = entryName
+    .split(String.fromCharCode(92))
+    .join("/")
+    .split("/")
+    .filter((part) => part && part !== ".")
+    .join(path.sep);
+  const categoryRoot = path.resolve(root, category);
+  const target = path.resolve(categoryRoot, normalized);
+  const relative = path.relative(categoryRoot, target);
+  if (
+    !normalized ||
+    relative === ".." ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative)
+  ) {
     throw new Error(`Unsafe resource path in index: ${entryName}`);
   }
   return target;
 }
-
 function xorResource(input, key) {
   const bytes = Buffer.from(input);
   const xorLength = Math.min(20, bytes.length);
