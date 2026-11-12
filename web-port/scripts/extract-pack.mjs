@@ -99,6 +99,57 @@ function parseImageCatalog(buffer) {
   return catalog;
 }
 
+
+function parseAnimationCatalog(buffer) {
+  const cursor = { offset: 0 };
+  if (buffer.length < 2) throw new Error("anis.dat is too small.");
+  const count = buffer.readUInt16BE(cursor.offset);
+  cursor.offset += 2;
+  const catalog = [];
+
+  for (let i = 0; i < count; i += 1) {
+    if (cursor.offset + 2 > buffer.length) {
+      throw new Error("Unexpected end of anis.dat (animation ID).");
+    }
+    const id = buffer.readUInt16BE(cursor.offset);
+    cursor.offset += 2;
+    const name = readJavaUtf(buffer, cursor);
+    const imageCount = buffer.readInt8(cursor.offset++);
+
+    if (imageCount === 1) {
+      if (cursor.offset + 2 > buffer.length) throw new Error("Unexpected end of anis.dat image ID.");
+      const imageId = buffer.readUInt16BE(cursor.offset);
+      cursor.offset += 2;
+      const overlay = cursor.offset < buffer.length && buffer.readUInt8(cursor.offset++)
+        ? readJavaUtf(buffer, cursor)
+        : null;
+      catalog.push({ id, name, mode: "single", images: [{ imageId, overlay }] });
+      continue;
+    }
+
+    if (imageCount < 0 || imageCount > 64) {
+      throw new Error(`Invalid image count ${imageCount} in animation ${id}.`);
+    }
+
+    const images = [];
+    for (let imageIndex = 0; imageIndex < imageCount; imageIndex += 1) {
+      if (cursor.offset + 2 > buffer.length) throw new Error("Unexpected end of anis.dat image list.");
+      const imageId = buffer.readUInt16BE(cursor.offset);
+      cursor.offset += 2;
+      const overlay = cursor.offset < buffer.length && buffer.readUInt8(cursor.offset++)
+        ? readJavaUtf(buffer, cursor)
+        : null;
+      images.push({ imageId, overlay });
+    }
+    catalog.push({ id, name, mode: "multi", images });
+  }
+
+  if (cursor.offset !== buffer.length) {
+    throw new Error(`anis.dat has ${buffer.length - cursor.offset} unexpected trailing byte(s).`);
+  }
+  return catalog;
+}
+
 function parseIndex(buffer) {
   if (buffer.length < 2) throw new Error("Index file is too small.");
   const cursor = { offset: 0 };
@@ -193,6 +244,7 @@ async function main() {
     extraction: "J2ME .idx/.pkg resources; XOR is applied to the first 20 bytes",
     categories: {},
     imageCatalog: [],
+    animationCatalog: [],
     staticFiles: [],
     resourceCount: 0,
     totalBytes: 0
@@ -246,6 +298,7 @@ async function main() {
 
   const imageCatalogPath = path.join(source, "images.dat");
   manifest.imageCatalog = parseImageCatalog(await readFile(imageCatalogPath));
+  manifest.animationCatalog = parseAnimationCatalog(await readFile(path.join(source, "anis.dat")));
 
   const staticOutput = path.join(output, "static");
   await mkdir(staticOutput, { recursive: true });
