@@ -332,7 +332,7 @@ export class MapPreviewScene {
     ctx.fillStyle = "#e2e8ef";
     ctx.textAlign = "right";
     ctx.font = "9px Arial, sans-serif";
-    ctx.fillText(`TEST ${this.#playerX},${this.#playerY} · ${this.#drawnSprites} sprites`, 312, 12);
+    ctx.fillText(`TEST ${this.#playerX},${this.#playerY} · B:${this.#blockedMoves}`, 312, 12);
 
     ctx.fillStyle = "#bac6d3";
     ctx.textAlign = "center";
