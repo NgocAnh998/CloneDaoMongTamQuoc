@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#111318">
+    <title>Đạo Mộng Tam Quốc — JavaScript Port</title>
+    <link rel="stylesheet" href="./src/styles.css">
+  </head>
+  <body>
+    <main class="app">
+      <header class="app-header">
+        <div class="eyebrow">J2ME → JAVASCRIPT</div>
+        <h1>Đạo Mộng Tam Quốc</h1>
+        <p class="subtitle">Bản chuyển đổi chạy trên trình duyệt</p>
+      </header>
+
+      <section class="game-frame" aria-label="Màn hình trò chơi">
+        <canvas id="gameCanvas" width="320" height="360" aria-label="Game canvas"></canvas>
+      </section>
+
+      <footer class="app-footer">
+        <p id="runtimeStatus" role="status">Đang khởi tạo runtime…</p>
+        <p class="hint">Bản nền kỹ thuật — gameplay và tài nguyên gốc đang được chuyển đổi.</p>
+      </footer>
+    </main>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

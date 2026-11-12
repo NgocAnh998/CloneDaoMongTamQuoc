@@ -1,0 +1,10 @@
+{
+  "name": "dao-mong-tam-quoc-web-port",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node server.mjs",
+    "check": "node --check src/main.js && node --check src/core/GameRuntime.js && node --check scripts/extract-pack.mjs"
+  }
+}
