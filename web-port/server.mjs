@@ -30,13 +30,19 @@ const mime = {
 async function ensureAssets() {
   try {
     await access(manifestPath);
-    console.log("Decoded game resources found in public/assets.");
-    return;
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+    const hasImageCatalog = Array.isArray(manifest.imageCatalog) && manifest.imageCatalog.length > 0;
+    const hasMapCatalog = Array.isArray(manifest.categories?.map) && manifest.categories.map.length > 0;
+    if (hasImageCatalog && hasMapCatalog) {
+      console.log("Decoded game resources and image catalog found in public/assets.");
+      return;
+    }
+    console.log("Existing resource manifest is from an older extractor; rebuilding it.");
   } catch {
-    // First run: decode the original package files before serving the game.
+    // First run or stale manifest: decode the original package files.
   }
 
-  console.log("First run: extracting original J2ME game resources with verified XOR key 0x61…");
+  console.log("Extracting original J2ME game resources with verified XOR key 0x61…");
   const result = spawnSync(
     process.execPath,
     [extractorPath, "--source", source, "--out", assetsRoot],
