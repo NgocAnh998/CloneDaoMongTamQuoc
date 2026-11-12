@@ -13,6 +13,35 @@ export class GameRuntime {
   #accumulator = 0;
   #running = false;
 
+  #onKeyDown = (event) => {
+    if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(event.key)) {
+      event.preventDefault();
+    }
+    this.#stack.handleKey("down", event);
+  };
+
+  #onKeyUp = (event) => {
+    this.#stack.handleKey("up", event);
+  };
+
+  #frame = (timestamp) => {
+    if (!this.#running) return;
+
+    if (this.#lastFrame === 0) this.#lastFrame = timestamp;
+    const elapsed = Math.min(timestamp - this.#lastFrame, 500);
+    this.#lastFrame = timestamp;
+    this.#accumulator += elapsed;
+
+    while (this.#accumulator >= LEGACY_TICK_MS) {
+      this.#stack.update(LEGACY_TICK_MS);
+      this.#accumulator -= LEGACY_TICK_MS;
+    }
+
+    this.#context.clearRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+    this.#stack.render(this.#context, this.#accumulator / LEGACY_TICK_MS);
+    this.#rafId = requestAnimationFrame(this.#frame);
+  };
+
   constructor(canvas) {
     if (!(canvas instanceof HTMLCanvasElement)) {
       throw new TypeError("GameRuntime requires a canvas element.");
@@ -26,21 +55,6 @@ export class GameRuntime {
     this.#canvas.width = LOGICAL_WIDTH;
     this.#canvas.height = LOGICAL_HEIGHT;
     this.#context.imageSmoothingEnabled = false;
-
-    this.#onKeyDown = this.#onKeyDown.bind(this);
-    this.#onKeyUp = this.#onKeyUp.bind(this);
-    this.#frame = this.#frame.bind(this);
-  }
-
-  #onKeyDown(event) {
-    if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(event.key)) {
-      event.preventDefault();
-    }
-    this.#stack.handleKey("down", event);
-  }
-
-  #onKeyUp(event) {
-    this.#stack.handleKey("up", event);
   }
 
   addScene(scene) {
@@ -63,24 +77,6 @@ export class GameRuntime {
     window.removeEventListener("keydown", this.#onKeyDown);
     window.removeEventListener("keyup", this.#onKeyUp);
     this.#stack.destroy();
-  }
-
-  #frame(timestamp) {
-    if (!this.#running) return;
-
-    if (this.#lastFrame === 0) this.#lastFrame = timestamp;
-    const elapsed = Math.min(timestamp - this.#lastFrame, 500);
-    this.#lastFrame = timestamp;
-    this.#accumulator += elapsed;
-
-    while (this.#accumulator >= LEGACY_TICK_MS) {
-      this.#stack.update(LEGACY_TICK_MS);
-      this.#accumulator -= LEGACY_TICK_MS;
-    }
-
-    this.#context.clearRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
-    this.#stack.render(this.#context, this.#accumulator / LEGACY_TICK_MS);
-    this.#rafId = requestAnimationFrame(this.#frame);
   }
 }
 
