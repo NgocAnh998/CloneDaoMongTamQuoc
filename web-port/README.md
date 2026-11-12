@@ -30,7 +30,9 @@ npm test
 - Selecting **Bản đồ** opens map resource `001`, resolves its two original image atlases through `images.dat`, and renders both 16×16 tile layers.
 - The map parser reads tile transforms, animation/entity references, collision records, and the optional parallax flag. It also parses `anis.dat` and `.ani` sprite-frame data, then draws the original entity sprites on map `001` for the supported single-atlas formats. Unsupported multi-atlas/palette cases fall back to position markers.
 - The six animation definitions used by map `001` all parse completely. Their action records each contain a single frame step, so those map objects currently appear as static poses rather than visibly looping animations. The parser retains frame-duration data for later character/NPC animation work.
-- In the map preview, arrow keys pan the camera, `E` toggles entity sprites, `C` toggles a raw collision-data overlay, and `ESC` returns to the menu.
+- The original collision grid is decoded from map data: `b.java` treats tile value `3` as blocked and other in-bounds values as walkable. Map `001` has 760 walkable cells and 840 blocked cells.
+- A provisional movement-test marker spawns on the nearest walkable tile to the map center. Arrow keys move it one tile at a time using the original blocked-cell rule; the camera follows. Hold `Shift` with an arrow to pan manually. This marker is only a collision/controller test, not the original hero sprite or the full J2ME movement implementation.
+- In the map preview, `E` toggles entity sprites, `C` toggles a collision overlay, and `ESC` returns to the menu.
 - Other menu sections are still placeholders; they are not represented as completed gameplay systems.
 
 ## Resource extraction
@@ -52,7 +54,7 @@ Generated files under `public/assets/` are ignored by Git.
 ## Porting plan
 
 1. Reconstruct the original home/menu scene after the music question (the original `ar` class did not decompile cleanly).
-2. Extend sprite playback to multi-atlas animations and palette overlays, then port the player character and movement.
+2. Recover the real player model and input controller, then replace the provisional movement-test marker with the original character, sprite actions, and movement timing.
 3. Port map collision response, camera-follow behavior, and NPC behavior.
 4. Port combat, skills, inventory, quests, and persistence.
 5. Compare each ported scene and mechanic against the original J2ME game.
