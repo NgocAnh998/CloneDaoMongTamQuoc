@@ -36,14 +36,20 @@ export function parseJ2MEMap(source, resourceName = "unknown") {
     });
   }
 
+  // b.java builds a column-first byte collision map; value 3 blocks movement.
   const collisionCount = reader.readU16();
   const collision = [];
+  const collisionGrid = new Uint8Array(cellCount);
   for (let i = 0; i < collisionCount; i += 1) {
-    collision.push({
+    const cell = {
       x: reader.readU8(),
       y: reader.readU8(),
       value: reader.readU8()
-    });
+    };
+    collision.push(cell);
+    if (cell.x < width && cell.y < height) {
+      collisionGrid[cell.x * height + cell.y] = cell.value;
+    }
   }
 
   const extra = reader.readU8();
@@ -62,9 +68,10 @@ export function parseJ2MEMap(source, resourceName = "unknown") {
     layer2,
     entities,
     collision,
+    collisionGrid,
     extra,
     hasParallax,
-    // The original J2ME renderer uses its fixed image resource ID 4 when enabled.
+    // The original J2ME map renderer uses its fixed image resource ID 4 when enabled.
     parallaxImageId: hasParallax ? 4 : null,
     trailingBytes: reader.remaining
   };
@@ -86,4 +93,18 @@ export function getTile(map, x, y, layer = 1) {
   if (x < 0 || y < 0 || x >= map.width || y >= map.height) return null;
   const index = x * map.height + y;
   return (layer === 1 ? map.layer1 : map.layer2)[index] ?? null;
+}
+
+export function isWalkableTile(map, x, y) {
+  if (
+    !Number.isInteger(x) ||
+    !Number.isInteger(y) ||
+    x < 0 ||
+    y < 0 ||
+    x >= map.width ||
+    y >= map.height
+  ) {
+    return false;
+  }
+  return map.collisionGrid[x * map.height + y] !== 3;
 }
