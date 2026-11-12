@@ -16,28 +16,38 @@ const MENU_LAYOUT = MENU_ITEMS.map((label, index) => ({
 
 export class TitleMenuScene {
   #assets;
+  #textCatalog;
   #onOpenMap;
+  #onMusicChoice;
   #mode = "splash";
   #splashElapsed = 0;
   #selected = 0;
+  #selectedMusicChoice = 0;
+  #musicEnabled = false;
   #activeModule = null;
   #openingMap = false;
   #errorMessage = null;
 
-  constructor(assets, onOpenMap = null) {
+  constructor(assets, onOpenMap = null, textCatalog = null, onMusicChoice = () => {}) {
     this.#assets = assets;
     this.#onOpenMap = onOpenMap;
+    this.#textCatalog = textCatalog;
+    this.#onMusicChoice = onMusicChoice;
   }
 
   update(deltaMs) {
     if (this.#mode !== "splash") return;
     this.#splashElapsed += deltaMs;
-    if (this.#splashElapsed >= 2400) this.#mode = "menu";
+    if (this.#splashElapsed >= 2400) this.#mode = "musicChoice";
   }
 
   render(ctx) {
     if (this.#mode === "splash") {
       this.#renderSplash(ctx);
+      return;
+    }
+    if (this.#mode === "musicChoice") {
+      this.#renderMusicChoice(ctx);
       return;
     }
     this.#renderMenu(ctx);
@@ -61,6 +71,54 @@ export class TitleMenuScene {
     ctx.font = "bold 10px Arial, sans-serif";
     ctx.textAlign = "center";
     ctx.fillText("CHẠM HOẶC NHẤN ENTER ĐỂ TIẾP TỤC", 160, 338);
+  }
+
+  #renderMusicChoice(ctx) {
+    const message = this.#textCatalog?.get(0) ??
+      "Tắt nhạc có thể gia tăng tốc độ trò chơi & Bạn có muốn bật nhạc không?";
+    const yes = this.#textCatalog?.get(1) ?? "Có";
+    const no = this.#textCatalog?.get(2) ?? "Không";
+
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(0, 0, GAME_VIEW.width, GAME_VIEW.height);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "12px Arial, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    const lines = wrapText(ctx, message, 280);
+    const firstY = 112;
+    for (let i = 0; i < lines.length; i += 1) {
+      ctx.fillText(lines[i], GAME_VIEW.width / 2, firstY + i * 18);
+    }
+
+    this.#drawMusicChoice(ctx, yes, 88, this.#selectedMusicChoice === 0);
+    this.#drawMusicChoice(ctx, no, 232, this.#selectedMusicChoice === 1);
+
+    ctx.fillStyle = "#b7b7b7";
+    ctx.font = "9px Arial, sans-serif";
+    ctx.fillText("← → Chọn     ENTER Xác nhận", 160, 312);
+  }
+
+  #drawMusicChoice(ctx, label, centerX, selected) {
+    const width = selected ? 92 : 78;
+    const height = 34;
+    const x = centerX - width / 2;
+    const y = 328;
+
+    if (selected) {
+      ctx.fillStyle = "#252525";
+      ctx.fillRect(x, y, width, height);
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 0.5, y + 0.5, width - 1, height - 1);
+    }
+
+    ctx.fillStyle = selected ? "#ffffff" : "#bdbdbd";
+    ctx.font = selected ? "bold 14px Arial, sans-serif" : "13px Arial, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, centerX, y + height / 2);
   }
 
   #renderMenu(ctx) {
@@ -163,6 +221,12 @@ export class TitleMenuScene {
     ctx.fillText("NHẤN ESC / ENTER ĐỂ QUAY LẠI", 160, 237);
   }
 
+  #chooseMusic(enabled) {
+    this.#musicEnabled = enabled;
+    this.#onMusicChoice(enabled);
+    this.#mode = "menu";
+  }
+
   #activateSelected() {
     const selected = MENU_ITEMS[this.#selected];
     this.#errorMessage = null;
@@ -186,14 +250,30 @@ export class TitleMenuScene {
 
   handleKey(type, event) {
     if (type !== "down") return;
+
     if (this.#mode === "splash") {
       if (event.key === "Enter" || event.key === " " || event.key === "Escape") {
-        this.#mode = "menu";
+        this.#mode = "musicChoice";
       }
       return;
     }
-    if (this.#openingMap) return;
 
+    if (this.#mode === "musicChoice") {
+      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        this.#selectedMusicChoice = this.#selectedMusicChoice === 0 ? 1 : 0;
+      } else if (event.key.toLowerCase() === "y" || event.key === "1") {
+        this.#chooseMusic(true);
+      } else if (event.key.toLowerCase() === "n" || event.key === "2") {
+        this.#chooseMusic(false);
+      } else if (event.key === "Enter") {
+        this.#chooseMusic(this.#selectedMusicChoice === 0);
+      } else if (event.key === "Escape") {
+        this.#chooseMusic(false);
+      }
+      return;
+    }
+
+    if (this.#openingMap) return;
     if (this.#activeModule || this.#errorMessage) {
       if (event.key === "Escape" || event.key === "Enter" || event.key === "Backspace") {
         this.#activeModule = null;
@@ -213,7 +293,11 @@ export class TitleMenuScene {
   handlePointer(point) {
     if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
     if (this.#mode === "splash") {
-      this.#mode = "menu";
+      this.#mode = "musicChoice";
+      return;
+    }
+    if (this.#mode === "musicChoice") {
+      this.#chooseMusic(point.x < GAME_VIEW.width / 2);
       return;
     }
     if (this.#openingMap) return;
@@ -233,4 +317,22 @@ export class TitleMenuScene {
       this.#activateSelected();
     }
   }
+}
+
+function wrapText(ctx, text, maxWidth) {
+  const words = text.split(/\s+/);
+  const lines = [];
+  let current = "";
+
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (current && ctx.measureText(candidate).width > maxWidth) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
 }
