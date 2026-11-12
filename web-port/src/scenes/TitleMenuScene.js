@@ -16,13 +16,17 @@ const MENU_LAYOUT = MENU_ITEMS.map((label, index) => ({
 
 export class TitleMenuScene {
   #assets;
+  #onOpenMap;
   #mode = "splash";
   #splashElapsed = 0;
   #selected = 0;
   #activeModule = null;
+  #openingMap = false;
+  #errorMessage = null;
 
-  constructor(assets) {
+  constructor(assets, onOpenMap = null) {
     this.#assets = assets;
+    this.#onOpenMap = onOpenMap;
   }
 
   update(deltaMs) {
@@ -37,7 +41,9 @@ export class TitleMenuScene {
       return;
     }
     this.#renderMenu(ctx);
-    if (this.#activeModule) this.#renderModulePanel(ctx);
+    if (this.#activeModule || this.#openingMap || this.#errorMessage) {
+      this.#renderModulePanel(ctx);
+    }
   }
 
   #renderSplash(ctx) {
@@ -132,7 +138,7 @@ export class TitleMenuScene {
   }
 
   #renderModulePanel(ctx) {
-    ctx.fillStyle = "rgba(0, 0, 0, 0.76)";
+    ctx.fillStyle = "rgba(0, 0, 0, 0.78)";
     ctx.fillRect(16, 100, 288, 156);
     ctx.strokeStyle = "#dcae65";
     ctx.lineWidth = 2;
@@ -140,15 +146,42 @@ export class TitleMenuScene {
     ctx.textAlign = "center";
     ctx.fillStyle = "#ffe0a2";
     ctx.font = "bold 16px Arial, sans-serif";
-    ctx.fillText(this.#activeModule, 160, 137);
+    ctx.fillText(
+      this.#errorMessage ? "Không mở được bản đồ" : (this.#openingMap ? "Đang nạp bản đồ…" : this.#activeModule),
+      160,
+      137
+    );
     ctx.fillStyle = "#e2e5e9";
     ctx.font = "11px Arial, sans-serif";
-    ctx.fillText("Module này chưa được chuyển đổi từ Java ME.", 160, 174);
-    ctx.fillText("Các màn hình và chức năng sẽ được port", 160, 194);
-    ctx.fillText("từng phần, dựa trên logic source gốc.", 160, 210);
+    const message = this.#errorMessage ??
+      (this.#openingMap
+        ? "Đang đọc map 001 và hai tileset gốc."
+        : "Module này chưa được chuyển đổi từ Java ME.");
+    ctx.fillText(message.slice(0, 42), 160, 180);
     ctx.fillStyle = "#f0ca89";
     ctx.font = "bold 10px Arial, sans-serif";
     ctx.fillText("NHẤN ESC / ENTER ĐỂ QUAY LẠI", 160, 237);
+  }
+
+  #activateSelected() {
+    const selected = MENU_ITEMS[this.#selected];
+    this.#errorMessage = null;
+
+    if (selected === "Bản đồ" && this.#onOpenMap) {
+      if (this.#openingMap) return;
+      this.#openingMap = true;
+      Promise.resolve()
+        .then(() => this.#onOpenMap())
+        .catch((error) => {
+          this.#errorMessage = error instanceof Error ? error.message : String(error);
+        })
+        .finally(() => {
+          this.#openingMap = false;
+        });
+      return;
+    }
+
+    this.#activeModule = selected;
   }
 
   handleKey(type, event) {
@@ -159,9 +192,12 @@ export class TitleMenuScene {
       }
       return;
     }
-    if (this.#activeModule) {
+    if (this.#openingMap) return;
+
+    if (this.#activeModule || this.#errorMessage) {
       if (event.key === "Escape" || event.key === "Enter" || event.key === "Backspace") {
         this.#activeModule = null;
+        this.#errorMessage = null;
       }
       return;
     }
@@ -170,7 +206,7 @@ export class TitleMenuScene {
     } else if (event.key === "ArrowDown" || event.key === "ArrowRight") {
       this.#selected = (this.#selected + 1) % MENU_ITEMS.length;
     } else if (event.key === "Enter") {
-      this.#activeModule = MENU_ITEMS[this.#selected];
+      this.#activateSelected();
     }
   }
 
@@ -180,8 +216,10 @@ export class TitleMenuScene {
       this.#mode = "menu";
       return;
     }
-    if (this.#activeModule) {
+    if (this.#openingMap) return;
+    if (this.#activeModule || this.#errorMessage) {
       this.#activeModule = null;
+      this.#errorMessage = null;
       return;
     }
     const item = MENU_LAYOUT.find((candidate) =>
@@ -192,7 +230,7 @@ export class TitleMenuScene {
     );
     if (item) {
       this.#selected = item.index;
-      this.#activeModule = item.label;
+      this.#activateSelected();
     }
   }
 }
